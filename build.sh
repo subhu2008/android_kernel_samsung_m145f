@@ -36,6 +36,8 @@ cd kernel_platform/common
 
 wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
 
+sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' ${WDIR}/kernel_platform/common/security/Kconfig
+
 cd ${WDIR}
 
 
