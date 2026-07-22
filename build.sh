@@ -23,6 +23,21 @@ fi
 
 echo -e "[+] Toolchain installed...\n"
 
+# Integrate KSUN
+cd kernel_platform/common
+
+curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+
+cd ${WDIR}
+
+# Integrate BBG
+
+cd kernel_platform/common
+
+wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
+
+cd ${WDIR}
+
 
 #1. target config
 export MODEL="a05s"
