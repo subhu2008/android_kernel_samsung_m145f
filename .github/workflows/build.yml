@@ -32,3 +32,12 @@ jobs:
         run: |
           chmod +x build.sh
           ./build.sh
+
+      - name: Upload boot.img
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-M145F
+          path: ./boot.img
+          if-no-files-found: error
+          retention-days: 7
