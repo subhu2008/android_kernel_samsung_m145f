@@ -86,6 +86,9 @@ int create_user_ns(struct cred *new)
 	struct ucounts *ucounts;
 	int ret, i;
 
+	if(!ns_capable(current_user_ns(), CAP_SYS_ADMIN))
+		return -EPERM;
+
 	ret = -ENOSPC;
 	if (parent_ns->level > 32)
 		goto fail;
@@ -172,6 +175,9 @@ int unshare_userns(unsigned long unshare_flags, struct cred **new_cred)
 {
 	struct cred *cred;
 	int err = -ENOMEM;
+
+	if((unshare_flags & CLONE_NEWUSER) && !ns_capable(current_user_ns(), CAP_SYS_ADMIN))
+		return -EPERM;
 
 	if (!(unshare_flags & CLONE_NEWUSER))
 		return 0;
