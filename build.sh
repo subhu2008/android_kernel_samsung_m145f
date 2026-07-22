@@ -77,7 +77,7 @@ env ${BUILD_OPTIONS[@]} "${GKI_BUILDSCRIPT}" sec ${TARGET_PRODUCT} || exit 1
 
 #4. copy kernel image and boot.img to dist directory
 if [ -f "${OUT_DIR}/dist/boot.img" ]; then
-    cp "${OUT_DIR}/dist/boot.img" "${WDIR}/dist/boot.img"
+    cp "${OUT_DIR}/dist/boot.img" "${WDIR}/boot.img"
 else
     echo -e "[-] Error: boot.img not found\n"
     exit 1
