@@ -26,7 +26,7 @@ jobs:
             python3 python3-pip rsync zip unzip \
             dwarves pahole device-tree-compiler \
             libncurses-dev busybox cpio libselinux* \
-            libssl-dev openssl 
+            libssl-dev openssl gawk
 
       - name: Build kernel
         run: |
