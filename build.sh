@@ -75,13 +75,13 @@ if [ "$MAKE_MENUCONFIG" = "1" ]; then
 fi
 
 # Localversion
-export LOCALVERSION="-subhu2008-a05s-kernel"
+export LOCALVERSION="-subhu2008-a05s-kernel-droidspaces"
 
 # custom build options
 export GKI_BUILDSCRIPT="./kernel_platform/build/android/prepare_vendor.sh"
 export BUILD_OPTIONS=(
     RECOMPILE_KERNEL=1
-    SKIP_MRPROPER=0
+    SKIP_MRPROPER=1
     TRIM_NONLISTED_KMI=0
     KMI_ENFORCED=0
     HERMETIC_TOOLCHAIN=$HERMETIC_VALUE
