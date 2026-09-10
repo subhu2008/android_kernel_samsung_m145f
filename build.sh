@@ -23,10 +23,10 @@ fi
 
 echo -e "[+] Toolchain installed...\n"
 
-# Integrate KSUN
+# Integrate ReSukiSu
 cd kernel_platform/common
 
-curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
 cd ${WDIR}
 
