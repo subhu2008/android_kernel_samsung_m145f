@@ -23,10 +23,10 @@ fi
 
 echo -e "[+] Toolchain installed...\n"
 
-# Integrate ReSukiSu
+# Integrate BakaSU (Formerly Resukisu)
 cd kernel_platform/common
 
-curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
 
 cd ${WDIR}
 
