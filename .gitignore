@@ -1,0 +1,2 @@
+# Local ccache storage (also used when ccache is enabled outside CI)
+.ccache/

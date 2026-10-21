@@ -16,6 +16,13 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+      actions: write
+    env:
+      USE_CCACHE: "1"
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPRESS: "true"
+      CCACHE_COMPRESSLEVEL: "6"
 
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +41,15 @@ jobs:
             libncurses-dev busybox cpio \
             libselinux1-dev openssl gawk p7zip-full git
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-
+
       - name: Configure Git identity
         run: |
           git config --global user.name "Subham Nayak"
@@ -43,6 +59,29 @@ jobs:
         run: |
           chmod +x build.sh
           ./build.sh
+
+      - name: Show ccache statistics
+        if: always()
+        run: ccache --show-stats || true
+
+      - name: Save ccache
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Prune old ccache entries
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prefix="ccache-${RUNNER_OS}-${{ github.ref_name }}-"
+          gh cache list --key "$prefix" --limit 100 --json id,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[1:] | .[].id' |
+            xargs -r -n1 gh cache delete
 
       - name: Generate SHA-256 checksum
         run: sha256sum boot.img > SHA256SUM.txt

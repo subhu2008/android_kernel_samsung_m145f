@@ -6,6 +6,33 @@ git submodule update --init --recursive || true
 export WDIR="$(dirname $(readlink -f $0))" && cd "$WDIR"
 export MERGE_CONFIG="${WDIR}/kernel_platform/common/scripts/kconfig/merge_config.sh"
 
+# ccache - keep the cache outside of out/ so it survives clean builds and can
+# be persisted by CI between runs.
+export USE_CCACHE="${USE_CCACHE:-1}"
+if [ "$USE_CCACHE" = "1" ]; then
+    if ! command -v ccache >/dev/null 2>&1; then
+        echo -e "[-] Error: ccache is not installed. Install it or set USE_CCACHE=0\n" >&2
+        exit 1
+    fi
+
+    export CCACHE_DIR="${CCACHE_DIR:-${WDIR}/.ccache}"
+    export CCACHE_BASEDIR="${CCACHE_BASEDIR:-${WDIR}}"
+    export CCACHE_COMPILERCHECK="${CCACHE_COMPILERCHECK:-content}"
+    export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-time_macros}"
+    export CCACHE_COMPRESS="${CCACHE_COMPRESS:-true}"
+    export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-6}"
+    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-2G}"
+    # Keep ccache available inside the restricted hermetic toolchain PATH.
+    export ADDITIONAL_HOST_TOOLS="${ADDITIONAL_HOST_TOOLS:-} ccache"
+
+    mkdir -p "$CCACHE_DIR"
+    ccache --max-size="$CCACHE_MAXSIZE" >/dev/null 2>&1 || true
+    ccache -z >/dev/null 2>&1 || true
+    trap 'ccache --show-stats || true' EXIT
+
+    echo -e "[+] ccache enabled (dir: ${CCACHE_DIR}, max: ${CCACHE_MAXSIZE})\n"
+fi
+
 rm -rf "${WDIR}/dist" \
     && rm -rf "${WDIR}/out" \
     && mkdir -p "${WDIR}/dist"

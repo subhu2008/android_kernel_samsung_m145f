@@ -253,6 +253,61 @@ fi
 
 export TOOL_ARGS="${tool_args[@]}"
 
+# Route compiler invocations through ccache when USE_CCACHE=1. ccache is
+# enabled through a private directory of compiler symlinks prepended to PATH,
+# which also covers HOSTCC/HOSTCXX and tools that call the compiler directly.
+if [ "${USE_CCACHE:-0}" = "1" ]; then
+  ccache_bin=$(command -v ccache 2>/dev/null || true)
+  if [ -z "${ccache_bin}" ] && [ -x /usr/bin/ccache ]; then
+    ccache_bin=/usr/bin/ccache
+  fi
+  if [ -z "${ccache_bin}" ]; then
+    echo "ERROR: USE_CCACHE=1 but ccache was not found." >&2
+    echo "Install ccache or set USE_CCACHE=0 to disable it." >&2
+    exit 1
+  fi
+
+  export CCACHE_DIR="${CCACHE_DIR:-${ROOT_DIR}/.ccache}"
+  export CCACHE_BASEDIR="${CCACHE_BASEDIR:-${ROOT_DIR}}"
+  export CCACHE_COMPILERCHECK="${CCACHE_COMPILERCHECK:-content}"
+  export CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS:-time_macros}"
+  export CCACHE_COMPRESS="${CCACHE_COMPRESS:-true}"
+  export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-6}"
+  export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-2G}"
+  mkdir -p "${CCACHE_DIR}"
+
+  # Record the real compiler locations before the ccache symlink directory is
+  # added to PATH, otherwise ccache could end up calling itself recursively.
+  ccache_compiler_dirs=
+  for compiler in clang clang++ gcc g++; do
+    compiler_path=$(command -v "${compiler}" 2>/dev/null || true)
+    if [ -n "${compiler_path}" ]; then
+      compiler_dir=$(dirname "${compiler_path}")
+      case ":${ccache_compiler_dirs}:" in
+        *":${compiler_dir}:"*) ;;
+        *) ccache_compiler_dirs="${ccache_compiler_dirs:+${ccache_compiler_dirs}:}${compiler_dir}" ;;
+      esac
+    fi
+  done
+  case ":${ccache_compiler_dirs}:" in
+    *":/usr/bin:"*) ;;
+    *) ccache_compiler_dirs="${ccache_compiler_dirs:+${ccache_compiler_dirs}:}/usr/bin" ;;
+  esac
+  export CCACHE_PATH="${CCACHE_PATH:-${ccache_compiler_dirs}}"
+
+  # This directory is under OUT_DIR, so it is recreated for every build and
+  # never ends up inside the persistent ccache directory.
+  ccache_bin_dir="${COMMON_OUT_DIR}/ccache-bin"
+  mkdir -p "${ccache_bin_dir}"
+  for compiler in clang clang++ gcc g++ cc c++; do
+    ln -sf "${ccache_bin}" "${ccache_bin_dir}/${compiler}"
+  done
+  PATH="${ccache_bin_dir}:${PATH}"
+  export PATH
+
+  "${ccache_bin}" --max-size="${CCACHE_MAXSIZE}" >/dev/null 2>&1 || true
+fi
+
 export DECOMPRESS_GZIP DECOMPRESS_LZ4 RAMDISK_COMPRESS RAMDISK_DECOMPRESS RAMDISK_EXT
 
 DECOMPRESS_GZIP="gzip -c -d"
