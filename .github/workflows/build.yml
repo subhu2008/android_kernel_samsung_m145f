@@ -1,11 +1,16 @@
-name: Kernel Build
+name: Build SM-M145F Kernel
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   pull_request:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -25,19 +30,35 @@ jobs:
             libelf-dev libssl-dev lld llvm clang \
             python3 python3-pip rsync zip unzip \
             dwarves pahole device-tree-compiler \
-            libncurses-dev busybox cpio libselinux* \
-            libssl-dev openssl gawk p7zip-full
+            libncurses-dev busybox cpio \
+            libselinux1-dev openssl gawk p7zip-full
 
-      - name: Build kernel
+      - name: Configure Git identity
+        env:
+          GIT_USER_NAME: ${{ vars.GIT_USER_NAME }}
+          GIT_USER_EMAIL: ${{ vars.GIT_USER_EMAIL }}
+        run: |
+          git config --global user.name "$GIT_USER_NAME"
+          git config --global user.email "$GIT_USER_EMAIL"
+
+      - name: Build SM-M145F (Galaxy M14 4G) kernel
         run: |
           chmod +x build.sh
           ./build.sh
 
       - name: Upload boot.img
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: boot-M145F
           path: ./boot.img
           if-no-files-found: error
           retention-days: 7
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" ./boot.img \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
