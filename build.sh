@@ -30,17 +30,6 @@ curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh
 
 cd ${WDIR}
 
-# SuSFS, switch to sync-susfs unless BakaSU dev merges sync-susfs commits to main branch
-cd kernel_platform/common/KernelSU
-
-git switch -c sync-susfs
-
-git fetch
-
-git pull origin sync-susfs --rebase
-
-cd ${WDIR}
-
 # Integrate BBG
 
 cd kernel_platform/common
