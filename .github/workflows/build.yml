@@ -1,4 +1,4 @@
-name: Build SM-M145F Kernel
+name: Build SM-M145F (Galaxy M14 4G) Kernel
 
 on:
   workflow_dispatch:
@@ -9,12 +9,13 @@ on:
       - "v*"
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
 
     steps:
       - uses: actions/checkout@v4
@@ -34,31 +35,40 @@ jobs:
             libselinux1-dev openssl gawk p7zip-full
 
       - name: Configure Git identity
-        env:
-          GIT_USER_NAME: ${{ vars.GIT_USER_NAME }}
-          GIT_USER_EMAIL: ${{ vars.GIT_USER_EMAIL }}
         run: |
-          git config --global user.name "$GIT_USER_NAME"
-          git config --global user.email "$GIT_USER_EMAIL"
+          git config --global user.name "Subham Nayak"
+          git config --global user.email "fstab.subhu@gmail.com"
 
       - name: Build SM-M145F (Galaxy M14 4G) kernel
         run: |
           chmod +x build.sh
           ./build.sh
 
-      - name: Upload boot.img
+      - name: Generate SHA-256 checksum
+        run: sha256sum boot.img > SHA256SUM.txt
+
+      - name: Attest boot.img
+        uses: actions/attest@v4
+        with:
+          subject-path: ./boot.img
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: boot-M145F
-          path: ./boot.img
+          path: |
+            boot.img
+            SHA256SUM.txt
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" ./boot.img \
+          gh release create "$GITHUB_REF_NAME" \
+            ./boot.img \
+            ./SHA256SUM.txt \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
