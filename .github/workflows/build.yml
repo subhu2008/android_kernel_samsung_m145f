@@ -110,10 +110,9 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Create GitHub Release
+      - name: Generate release notes
         if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.create_release)
         env:
-          GH_TOKEN: ${{ github.token }}
           INPUT_TAG: ${{ inputs.release_tag }}
         run: |
           if [ -n "$INPUT_TAG" ]; then
@@ -124,14 +123,24 @@ jobs:
             tag="manual-${GITHUB_RUN_NUMBER}"
           fi
 
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release $tag already exists, updating assets..."
-            gh release upload "$tag" ./boot.img ./SHA256SUM.txt --clobber
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          bash .github/scripts/generate-release-notes.sh "$tag" > release-notes.md
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists, updating assets and notes..."
+            gh release upload "$RELEASE_TAG" ./boot.img ./SHA256SUM.txt --clobber
+            gh release edit "$RELEASE_TAG" --notes-file release-notes.md
           else
-            gh release create "$tag" \
+            gh release create "$RELEASE_TAG" \
               ./boot.img \
               ./SHA256SUM.txt \
-              --title "$tag" \
-              --generate-notes \
+              --title "$RELEASE_TAG" \
+              --notes-file release-notes.md \
               --target "$GITHUB_SHA"
           fi
