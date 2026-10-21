@@ -78,7 +78,7 @@ fi
 export COMMIT_HASH=$(git rev-parse --short HEAD)
 
 # Localversion
-export LOCALVERSION="-subhu2008-a05s-kernel-droidspaces-$(COMMIT_HASH)"
+export LOCALVERSION="-subhu2008-a05s-kernel-droidspaces-${COMMIT_HASH}"
 
 # custom build options
 export GKI_BUILDSCRIPT="./kernel_platform/build/android/prepare_vendor.sh"
