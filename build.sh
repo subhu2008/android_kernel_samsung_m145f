@@ -67,6 +67,12 @@ sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/se
 
 cd ${WDIR}
 
+# Integrate Nomount
+cd kernel_platform/common
+
+curl https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh | bash -
+
+cd ${WDIR}
 
 #1. target config
 export MODEL="a05s"
