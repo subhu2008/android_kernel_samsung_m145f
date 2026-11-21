@@ -364,7 +364,10 @@ struct rt_rq;
 extern struct list_head task_groups;
 
 struct cfs_bandwidth {
+};
+
 #ifdef CONFIG_CFS_BANDWIDTH
+struct cfs_bandwidth_state {
 	raw_spinlock_t		lock;
 	ktime_t			period;
 	u64			quota;
@@ -383,8 +386,25 @@ struct cfs_bandwidth {
 	int			nr_periods;
 	int			nr_throttled;
 	u64			throttled_time;
-#endif
 };
+
+struct cfs_rq_bandwidth {
+	struct cfs_rq		*cfs_rq;
+	int			runtime_enabled;
+	s64			runtime_remaining;
+	u64			throttled_clock;
+	u64			throttled_clock_pelt;
+	u64			throttled_clock_pelt_time;
+	int			throttled;
+	int			throttle_count;
+	struct list_head	throttled_list;
+};
+#else
+struct cfs_bandwidth_state {
+};
+struct cfs_rq_bandwidth {
+};
+#endif
 
 /* Task group related information */
 struct task_group {
@@ -444,10 +464,23 @@ struct task_group {
 #endif
 
 	ANDROID_KABI_RESERVE(1);
+#ifdef CONFIG_CFS_BANDWIDTH
+	ANDROID_KABI_USE(2, struct cfs_bandwidth_state *cfs_bandwidth_state);
+#else
 	ANDROID_KABI_RESERVE(2);
+#endif
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
 };
+
+static inline struct cfs_bandwidth_state *tg_cfs_bandwidth(struct task_group *tg)
+{
+#ifdef CONFIG_CFS_BANDWIDTH
+	return tg->cfs_bandwidth_state;
+#else
+	return NULL;
+#endif
+}
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 #define ROOT_TASK_GROUP_LOAD	NICE_0_LOAD
@@ -489,10 +522,10 @@ extern void unregister_fair_sched_group(struct task_group *tg);
 extern void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 			struct sched_entity *se, int cpu,
 			struct sched_entity *parent);
-extern void init_cfs_bandwidth(struct cfs_bandwidth *cfs_b);
+extern void init_cfs_bandwidth(struct cfs_bandwidth_state *cfs_b);
 
-extern void __refill_cfs_bandwidth_runtime(struct cfs_bandwidth *cfs_b);
-extern void start_cfs_bandwidth(struct cfs_bandwidth *cfs_b);
+extern void __refill_cfs_bandwidth_runtime(struct cfs_bandwidth_state *cfs_b);
+extern void start_cfs_bandwidth(struct cfs_bandwidth_state *cfs_b);
 extern void unthrottle_cfs_rq(struct cfs_rq *cfs_rq);
 
 extern void unregister_rt_sched_group(struct task_group *tg);
@@ -620,15 +653,7 @@ struct cfs_rq {
 	int			idle;
 
 #ifdef CONFIG_CFS_BANDWIDTH
-	int			runtime_enabled;
-	s64			runtime_remaining;
-
-	u64			throttled_clock;
-	u64			throttled_clock_pelt;
-	u64			throttled_clock_pelt_time;
-	int			throttled;
-	int			throttle_count;
-	struct list_head	throttled_list;
+	struct cfs_rq_bandwidth *cfs_bandwidth;
 #endif /* CONFIG_CFS_BANDWIDTH */
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 };

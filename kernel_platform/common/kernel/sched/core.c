@@ -9551,6 +9551,10 @@ int in_sched_functions(unsigned long addr)
  * Every task in system belongs to this group at bootup.
  */
 struct task_group root_task_group;
+#ifdef CONFIG_CFS_BANDWIDTH
+static struct cfs_bandwidth_state root_cfs_bandwidth;
+static DEFINE_PER_CPU(struct cfs_rq_bandwidth, root_cfs_rq_bandwidth);
+#endif
 EXPORT_SYMBOL_GPL(root_task_group);
 LIST_HEAD(task_groups);
 EXPORT_SYMBOL_GPL(task_groups);
@@ -9594,7 +9598,10 @@ void __init sched_init(void)
 		ptr += nr_cpu_ids * sizeof(void **);
 
 		root_task_group.shares = ROOT_TASK_GROUP_LOAD;
-		init_cfs_bandwidth(&root_task_group.cfs_bandwidth);
+#ifdef CONFIG_CFS_BANDWIDTH
+		root_task_group.cfs_bandwidth_state = &root_cfs_bandwidth;
+#endif
+		init_cfs_bandwidth(tg_cfs_bandwidth(&root_task_group));
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 #ifdef CONFIG_RT_GROUP_SCHED
 		root_task_group.rt_se = (struct sched_rt_entity **)ptr;
@@ -9643,6 +9650,9 @@ void __init sched_init(void)
 		rq->nr_running = 0;
 		rq->calc_load_active = 0;
 		rq->calc_load_update = jiffies + LOAD_FREQ;
+#ifdef CONFIG_CFS_BANDWIDTH
+		rq->cfs.cfs_bandwidth = &per_cpu(root_cfs_rq_bandwidth, i);
+#endif
 		init_cfs_rq(&rq->cfs);
 		init_rt_rq(&rq->rt);
 		init_dl_rq(&rq->dl);
@@ -10511,7 +10521,7 @@ static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota,
 				u64 burst)
 {
 	int i, ret = 0, runtime_enabled, runtime_was_enabled;
-	struct cfs_bandwidth *cfs_b = &tg->cfs_bandwidth;
+	struct cfs_bandwidth_state *cfs_b = tg_cfs_bandwidth(tg);
 
 	if (tg == &root_task_group)
 		return -EINVAL;
@@ -10543,7 +10553,7 @@ static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota,
 		return -EINVAL;
 
 	/*
-	 * Prevent race between setting of cfs_rq->runtime_enabled and
+	 * Prevent race between setting runtime_enabled and
 	 * unthrottle_offline_cfs_rqs().
 	 */
 	cpus_read_lock();
@@ -10579,10 +10589,10 @@ static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota,
 		struct rq_flags rf;
 
 		rq_lock_irq(rq, &rf);
-		cfs_rq->runtime_enabled = runtime_enabled;
-		cfs_rq->runtime_remaining = 0;
+		cfs_rq->cfs_bandwidth->runtime_enabled = runtime_enabled;
+		cfs_rq->cfs_bandwidth->runtime_remaining = 0;
 
-		if (cfs_rq->throttled)
+		if (cfs_rq->cfs_bandwidth->throttled)
 			unthrottle_cfs_rq(cfs_rq);
 		rq_unlock_irq(rq, &rf);
 	}
@@ -10599,8 +10609,8 @@ static int tg_set_cfs_quota(struct task_group *tg, long cfs_quota_us)
 {
 	u64 quota, period, burst;
 
-	period = ktime_to_ns(tg->cfs_bandwidth.period);
-	burst = tg->cfs_bandwidth.burst;
+	period = ktime_to_ns(tg_cfs_bandwidth(tg)->period);
+	burst = tg_cfs_bandwidth(tg)->burst;
 	if (cfs_quota_us < 0)
 		quota = RUNTIME_INF;
 	else if ((u64)cfs_quota_us <= U64_MAX / NSEC_PER_USEC)
@@ -10615,10 +10625,10 @@ static long tg_get_cfs_quota(struct task_group *tg)
 {
 	u64 quota_us;
 
-	if (tg->cfs_bandwidth.quota == RUNTIME_INF)
+	if (tg_cfs_bandwidth(tg)->quota == RUNTIME_INF)
 		return -1;
 
-	quota_us = tg->cfs_bandwidth.quota;
+	quota_us = tg_cfs_bandwidth(tg)->quota;
 	do_div(quota_us, NSEC_PER_USEC);
 
 	return quota_us;
@@ -10632,8 +10642,8 @@ static int tg_set_cfs_period(struct task_group *tg, long cfs_period_us)
 		return -EINVAL;
 
 	period = (u64)cfs_period_us * NSEC_PER_USEC;
-	quota = tg->cfs_bandwidth.quota;
-	burst = tg->cfs_bandwidth.burst;
+	quota = tg_cfs_bandwidth(tg)->quota;
+	burst = tg_cfs_bandwidth(tg)->burst;
 
 	return tg_set_cfs_bandwidth(tg, period, quota, burst);
 }
@@ -10642,7 +10652,7 @@ static long tg_get_cfs_period(struct task_group *tg)
 {
 	u64 cfs_period_us;
 
-	cfs_period_us = ktime_to_ns(tg->cfs_bandwidth.period);
+	cfs_period_us = ktime_to_ns(tg_cfs_bandwidth(tg)->period);
 	do_div(cfs_period_us, NSEC_PER_USEC);
 
 	return cfs_period_us;
@@ -10656,8 +10666,8 @@ static int tg_set_cfs_burst(struct task_group *tg, long cfs_burst_us)
 		return -EINVAL;
 
 	burst = (u64)cfs_burst_us * NSEC_PER_USEC;
-	period = ktime_to_ns(tg->cfs_bandwidth.period);
-	quota = tg->cfs_bandwidth.quota;
+	period = ktime_to_ns(tg_cfs_bandwidth(tg)->period);
+	quota = tg_cfs_bandwidth(tg)->quota;
 
 	return tg_set_cfs_bandwidth(tg, period, quota, burst);
 }
@@ -10666,7 +10676,7 @@ static long tg_get_cfs_burst(struct task_group *tg)
 {
 	u64 burst_us;
 
-	burst_us = tg->cfs_bandwidth.burst;
+	burst_us = tg_cfs_bandwidth(tg)->burst;
 	do_div(burst_us, NSEC_PER_USEC);
 
 	return burst_us;
@@ -10740,13 +10750,14 @@ static u64 normalize_cfs_quota(struct task_group *tg,
 static int tg_cfs_schedulable_down(struct task_group *tg, void *data)
 {
 	struct cfs_schedulable_data *d = data;
-	struct cfs_bandwidth *cfs_b = &tg->cfs_bandwidth;
+	struct cfs_bandwidth_state *cfs_b = tg_cfs_bandwidth(tg);
 	s64 quota = 0, parent_quota = -1;
 
 	if (!tg->parent) {
 		quota = RUNTIME_INF;
 	} else {
-		struct cfs_bandwidth *parent_b = &tg->parent->cfs_bandwidth;
+		struct cfs_bandwidth_state *parent_b =
+			tg_cfs_bandwidth(tg->parent);
 
 		quota = normalize_cfs_quota(tg, d);
 		parent_quota = parent_b->hierarchical_quota;
@@ -10794,7 +10805,7 @@ static int __cfs_schedulable(struct task_group *tg, u64 period, u64 quota)
 static int cpu_cfs_stat_show(struct seq_file *sf, void *v)
 {
 	struct task_group *tg = css_tg(seq_css(sf));
-	struct cfs_bandwidth *cfs_b = &tg->cfs_bandwidth;
+	struct cfs_bandwidth_state *cfs_b = tg_cfs_bandwidth(tg);
 
 	seq_printf(sf, "nr_periods %d\n", cfs_b->nr_periods);
 	seq_printf(sf, "nr_throttled %d\n", cfs_b->nr_throttled);
@@ -10930,7 +10941,7 @@ static int cpu_extra_stat_show(struct seq_file *sf,
 #ifdef CONFIG_CFS_BANDWIDTH
 	{
 		struct task_group *tg = css_tg(css);
-		struct cfs_bandwidth *cfs_b = &tg->cfs_bandwidth;
+		struct cfs_bandwidth_state *cfs_b = tg_cfs_bandwidth(tg);
 		u64 throttled_usec;
 
 		throttled_usec = cfs_b->throttled_time;
@@ -11055,7 +11066,7 @@ static ssize_t cpu_max_write(struct kernfs_open_file *of,
 {
 	struct task_group *tg = css_tg(of_css(of));
 	u64 period = tg_get_cfs_period(tg);
-	u64 burst = tg->cfs_bandwidth.burst;
+	u64 burst = tg_cfs_bandwidth(tg)->burst;
 	u64 quota;
 	int ret;
 

@@ -46,6 +46,12 @@ enum cgroup_subsys_id {
 };
 #undef SUBSYS
 
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+#define CGROUP_SUBSYS_KABI_COUNT	(CGROUP_SUBSYS_COUNT - 1)
+#else
+#define CGROUP_SUBSYS_KABI_COUNT	CGROUP_SUBSYS_COUNT
+#endif
+
 /* bits in struct cgroup_subsys_state flags field */
 enum {
 	CSS_NO_REF	= (1 << 0), /* no reference counting for this css */
@@ -196,16 +202,25 @@ struct cgroup_subsys_state {
  * list_add()/del() can bump the reference count on the entire cgroup
  * set for a task.
  */
+struct css_set_pids_ext {
+	struct css_set *owner;
+	struct cgroup_subsys_state *subsys;
+	struct list_head e_cset_node;
+};
+
 struct css_set {
 	/*
 	 * Set of subsystem states, one for each subsystem. This array is
 	 * immutable after creation apart from the init_css_set during
 	 * subsystem registration (at boot time).
 	 */
-	struct cgroup_subsys_state *subsys[CGROUP_SUBSYS_COUNT];
+	struct cgroup_subsys_state *subsys[CGROUP_SUBSYS_KABI_COUNT];
 
 	/* reference count */
 	refcount_t refcount;
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	u32 pids_ext_low;
+#endif
 
 	/*
 	 * For a domain cgroup, the following points to self.  If threaded,
@@ -220,6 +235,9 @@ struct css_set {
 
 	/* internal task count, protected by css_set_lock */
 	int nr_tasks;
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	u32 pids_ext_high;
+#endif
 
 	/*
 	 * Lists running through all tasks using this cgroup group.
@@ -242,7 +260,7 @@ struct css_set {
 	 * ->subsys[ssid]->cgroup->e_csets[ssid] and provides a way to
 	 * iterate through all css's attached to a given cgroup.
 	 */
-	struct list_head e_cset_node[CGROUP_SUBSYS_COUNT];
+	struct list_head e_cset_node[CGROUP_SUBSYS_KABI_COUNT];
 
 	/* all threaded csets whose ->dom_cset points to this cset */
 	struct list_head threaded_csets;
@@ -285,6 +303,73 @@ struct css_set {
 	/* For RCU-protected deletion */
 	struct rcu_head rcu_head;
 };
+
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+static inline struct css_set_pids_ext *css_set_pids_ext(struct css_set *cset)
+{
+	u64 value = ((u64)READ_ONCE(cset->pids_ext_high) << 32) |
+		    READ_ONCE(cset->pids_ext_low);
+
+	return (struct css_set_pids_ext *)(unsigned long)value;
+}
+
+static inline void css_set_set_pids_ext(struct css_set *cset,
+					struct css_set_pids_ext *ext)
+{
+	u64 value = (unsigned long)ext;
+
+	WRITE_ONCE(cset->pids_ext_low, lower_32_bits(value));
+	WRITE_ONCE(cset->pids_ext_high, upper_32_bits(value));
+}
+#endif
+
+static inline bool css_set_uses_ext_ssid(int ssid)
+{
+	return ssid >= CGROUP_SUBSYS_KABI_COUNT;
+}
+
+static inline struct cgroup_subsys_state *css_set_get_subsys(
+		struct css_set *cset, int ssid)
+{
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	if (css_set_uses_ext_ssid(ssid))
+		return css_set_pids_ext(cset)->subsys;
+#endif
+	return cset->subsys[ssid];
+}
+
+static inline void css_set_set_subsys(struct css_set *cset, int ssid,
+				      struct cgroup_subsys_state *css)
+{
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	if (css_set_uses_ext_ssid(ssid)) {
+		css_set_pids_ext(cset)->subsys = css;
+		return;
+	}
+#endif
+	cset->subsys[ssid] = css;
+}
+
+static inline struct list_head *css_set_e_cset_node(struct css_set *cset,
+						     int ssid)
+{
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	if (css_set_uses_ext_ssid(ssid))
+		return &css_set_pids_ext(cset)->e_cset_node;
+#endif
+	return &cset->e_cset_node[ssid];
+}
+
+static inline struct css_set *css_set_from_e_cset_node(struct list_head *node,
+							int ssid)
+{
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	if (css_set_uses_ext_ssid(ssid))
+		return container_of(node, struct css_set_pids_ext,
+				    e_cset_node)->owner;
+#endif
+	return container_of(node, struct css_set, e_cset_node[ssid]);
+}
 
 struct cgroup_base_stat {
 	struct task_cputime cputime;
@@ -358,6 +443,11 @@ struct cgroup_freezer_state {
 	int nr_frozen_tasks;
 };
 
+struct cgroup_pids_ext {
+	struct cgroup_subsys_state __rcu *subsys;
+	struct list_head e_csets;
+};
+
 struct cgroup {
 	/* self css with NULL ->ss, points back to this cgroup */
 	struct cgroup_subsys_state self;
@@ -406,6 +496,9 @@ struct cgroup {
 	int nr_populated_threaded_children;
 
 	int nr_threaded_children;	/* # of live threaded child cgroups */
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	u32 pids_ext_low;
+#endif
 
 	struct kernfs_node *kn;		/* cgroup kernfs entry */
 	struct cgroup_file procs_file;	/* handle for "cgroup.procs" */
@@ -424,7 +517,7 @@ struct cgroup {
 	u16 old_subtree_ss_mask;
 
 	/* Private pointers for each registered subsystem */
-	struct cgroup_subsys_state __rcu *subsys[CGROUP_SUBSYS_COUNT];
+	struct cgroup_subsys_state __rcu *subsys[CGROUP_SUBSYS_KABI_COUNT];
 
 	struct cgroup_root *root;
 
@@ -441,7 +534,7 @@ struct cgroup {
 	 * following lists all css_sets which point to this cgroup's css
 	 * for the given subsystem.
 	 */
-	struct list_head e_csets[CGROUP_SUBSYS_COUNT];
+	struct list_head e_csets[CGROUP_SUBSYS_KABI_COUNT];
 
 	/*
 	 * If !threaded, self.  If threaded, it points to the nearest
@@ -486,10 +579,52 @@ struct cgroup {
 
 	/* Used to store internal freezer state */
 	struct cgroup_freezer_state freezer;
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	u32 pids_ext_high;
+#endif
 
 	/* ids of the ancestors at each level including self */
 	u64 ancestor_ids[];
 };
+
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+static inline struct cgroup_pids_ext *cgroup_pids_ext(struct cgroup *cgrp)
+{
+	u64 value = ((u64)READ_ONCE(cgrp->pids_ext_high) << 32) |
+		    READ_ONCE(cgrp->pids_ext_low);
+
+	return (struct cgroup_pids_ext *)(unsigned long)value;
+}
+
+static inline void cgroup_set_pids_ext(struct cgroup *cgrp,
+				       struct cgroup_pids_ext *ext)
+{
+	u64 value = (unsigned long)ext;
+
+	WRITE_ONCE(cgrp->pids_ext_low, lower_32_bits(value));
+	WRITE_ONCE(cgrp->pids_ext_high, upper_32_bits(value));
+}
+#endif
+
+static inline struct cgroup_subsys_state __rcu **cgroup_subsys_ptr(
+		struct cgroup *cgrp, int ssid)
+{
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	if (css_set_uses_ext_ssid(ssid))
+		return &cgroup_pids_ext(cgrp)->subsys;
+#endif
+	return &cgrp->subsys[ssid];
+}
+
+static inline struct list_head *cgroup_e_csets_ptr(struct cgroup *cgrp,
+						    int ssid)
+{
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	if (css_set_uses_ext_ssid(ssid))
+		return &cgroup_pids_ext(cgrp)->e_csets;
+#endif
+	return &cgrp->e_csets[ssid];
+}
 
 /*
  * A cgroup_root represents the root of a cgroup hierarchy, and may be

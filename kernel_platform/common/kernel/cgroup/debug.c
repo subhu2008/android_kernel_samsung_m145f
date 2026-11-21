@@ -61,7 +61,7 @@ static int current_css_set_read(struct seq_file *seq, void *v)
 	 * Print the css'es stored in the current css_set.
 	 */
 	for_each_subsys(ss, i) {
-		css = cset->subsys[ss->id];
+		css = css_set_get_subsys(cset, ss->id);
 		if (!css)
 			continue;
 		seq_printf(seq, "%2d: %-4s\t- %p[%d]\n", ss->id, ss->name,
@@ -214,7 +214,7 @@ static int cgroup_subsys_states_read(struct seq_file *seq, void *v)
 		return -ENODEV;
 
 	for_each_subsys(ss, i) {
-		css = rcu_dereference_check(cgrp->subsys[ss->id], true);
+		css = rcu_dereference_check(*cgroup_subsys_ptr(cgrp, ss->id), true);
 		if (!css)
 			continue;
 

@@ -643,9 +643,9 @@ void print_cfs_rq(struct seq_file *m, int cpu, struct cfs_rq *cfs_rq)
 #endif
 #ifdef CONFIG_CFS_BANDWIDTH
 	SEQ_printf(m, "  .%-30s: %d\n", "throttled",
-			cfs_rq->throttled);
+			cfs_rq->cfs_bandwidth->throttled);
 	SEQ_printf(m, "  .%-30s: %d\n", "throttle_count",
-			cfs_rq->throttle_count);
+			cfs_rq->cfs_bandwidth->throttle_count);
 #endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED

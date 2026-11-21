@@ -484,7 +484,7 @@ extern spinlock_t css_set_lock;
  * synchronization rules are the same as task_css_set_check().
  */
 #define task_css_check(task, subsys_id, __c)				\
-	task_css_set_check((task), (__c))->subsys[(subsys_id)]
+	css_set_get_subsys(task_css_set_check((task), (__c)), (subsys_id))
 
 /**
  * task_css_set - obtain a task's css_set
@@ -552,7 +552,7 @@ task_get_css(struct task_struct *task, int subsys_id)
 static inline bool task_css_is_root(struct task_struct *task, int subsys_id)
 {
 	return task_css_check(task, subsys_id, true) ==
-		init_css_set.subsys[subsys_id];
+		css_set_get_subsys(&init_css_set, subsys_id);
 }
 
 static inline struct cgroup *task_cgroup(struct task_struct *task,

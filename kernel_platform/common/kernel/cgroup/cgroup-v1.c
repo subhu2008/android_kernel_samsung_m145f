@@ -1145,6 +1145,7 @@ static int cgroup1_root_to_use(struct fs_context *fc)
 	struct cgroup_fs_context *ctx = cgroup_fc2context(fc);
 	struct cgroup_root *root;
 	struct cgroup_subsys *ss;
+	size_t root_size = sizeof(*root);
 	int i, ret;
 
 	/* First find the desired set of subsystems */
@@ -1216,9 +1217,15 @@ static int cgroup1_root_to_use(struct fs_context *fc)
 	if (ctx->ns != &init_cgroup_ns)
 		return -EPERM;
 
-	root = kzalloc(sizeof(*root), GFP_KERNEL);
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	root_size += sizeof(struct cgroup_pids_ext);
+#endif
+	root = kzalloc(root_size, GFP_KERNEL);
 	if (!root)
 		return -ENOMEM;
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+	cgroup_set_pids_ext(&root->cgrp, (void *)(root + 1));
+#endif
 
 	ctx->root = root;
 	init_cgroup_root(ctx);

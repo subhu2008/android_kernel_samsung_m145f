@@ -222,7 +222,7 @@ static int pids_can_fork(struct task_struct *task, struct css_set *cset)
 	int err;
 
 	if (cset)
-		css = cset->subsys[pids_cgrp_id];
+		css = css_set_get_subsys(cset, pids_cgrp_id);
 	else
 		css = task_css_check(current, pids_cgrp_id, true);
 	pids = css_pids(css);
@@ -245,7 +245,7 @@ static void pids_cancel_fork(struct task_struct *task, struct css_set *cset)
 	struct pids_cgroup *pids;
 
 	if (cset)
-		css = cset->subsys[pids_cgrp_id];
+		css = css_set_get_subsys(cset, pids_cgrp_id);
 	else
 		css = task_css_check(current, pids_cgrp_id, true);
 	pids = css_pids(css);

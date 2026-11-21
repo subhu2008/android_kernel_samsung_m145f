@@ -53,10 +53,6 @@ SUBSYS(net_prio)
 SUBSYS(hugetlb)
 #endif
 
-#if IS_ENABLED(CONFIG_CGROUP_PIDS)
-SUBSYS(pids)
-#endif
-
 #if IS_ENABLED(CONFIG_CGROUP_RDMA)
 SUBSYS(rdma)
 #endif
@@ -70,6 +66,11 @@ SUBSYS(misc)
  */
 #if IS_ENABLED(CONFIG_CGROUP_DEBUG)
 SUBSYS(debug)
+#endif
+
+/* Keep optional post-GKI controllers after the frozen subsystem IDs. */
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+SUBSYS(pids)
 #endif
 
 /*
