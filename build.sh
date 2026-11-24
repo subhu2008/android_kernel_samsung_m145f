@@ -140,9 +140,25 @@ fi
 
 if [ -f "${OUT_DIR}/dist/Image" ]; then
     cp "${OUT_DIR}/dist/Image" "${WDIR}/dist/Image"
+    cp "${OUT_DIR}/dist/Image" "${WDIR}/Image"
 else
     echo -e "[-] Error: Image not found\n"
     exit 1
+fi
+
+#5. Package AnyKernel3 flashable zip
+if [ -d "${WDIR}/anykernel" ] && command -v zip >/dev/null 2>&1; then
+    echo -e "[+] Building AnyKernel3 flashable zip...\n"
+    AK3_DIR="${WDIR}/out/anykernel_pkg"
+    rm -rf "$AK3_DIR"
+    mkdir -p "$AK3_DIR"
+    cp -r "${WDIR}/anykernel/"* "$AK3_DIR/"
+    cp "${WDIR}/Image" "$AK3_DIR/Image"
+    AK3_ZIP="${WDIR}/AnyKernel3-M145F-A05S-${COMMIT_HASH}.zip"
+    rm -f "$AK3_ZIP"
+    (cd "$AK3_DIR" && zip -r9 "$AK3_ZIP" * -x "*.git*" "README.md" >/dev/null)
+    rm -rf "$AK3_DIR"
+    echo -e "[+] Created: ${AK3_ZIP}\n"
 fi
 
 echo -e "[+] Kernel build completed successfully\n"

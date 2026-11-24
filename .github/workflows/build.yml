@@ -106,8 +106,10 @@ jobs:
           name: boot-M145F
           path: |
             boot.img
+            Image
+            AnyKernel3*.zip
             SHA256SUM.txt
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Generate release notes
@@ -134,11 +136,13 @@ jobs:
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists, updating assets and notes..."
-            gh release upload "$RELEASE_TAG" ./boot.img ./SHA256SUM.txt --clobber
+            gh release upload "$RELEASE_TAG" ./boot.img Image AnyKernel3*.zip ./SHA256SUM.txt --clobber
             gh release edit "$RELEASE_TAG" --notes-file release-notes.md
           else
             gh release create "$RELEASE_TAG" \
               ./boot.img \
+              Image \
+              AnyKernel3*.zip \
               ./SHA256SUM.txt \
               --title "$RELEASE_TAG" \
               --notes-file release-notes.md \
